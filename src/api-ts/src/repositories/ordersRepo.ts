@@ -4,8 +4,18 @@
 
 import { getDatabase, DatabaseConnection } from '../db/sqlite';
 import { Order } from '../models/order';
+import { OrderHistory } from '../models/orderHistory';
 import { handleDatabaseError, NotFoundError } from '../utils/errors';
 import { buildInsertSQL, buildUpdateSQL, objectToCamelCase, mapDatabaseRows, DatabaseRow } from '../utils/sql';
+
+interface OrderHistoryRow extends Omit<OrderHistory, 'total' | 'orderDetails'> {
+  orderDetailId: number | null;
+  productId: number | null;
+  productName: string | null;
+  quantity: number | null;
+  unitPrice: number | null;
+  notes: string | null;
+}
 
 export class OrdersRepository {
   private db: DatabaseConnection;
@@ -120,6 +130,65 @@ export class OrdersRepository {
         [branchId],
       );
       return mapDatabaseRows<Order>(rows);
+    } catch (error) {
+      handleDatabaseError(error);
+    }
+  }
+
+  async findHistoryByBranchId(branchId: number, limit: number = 50, offset: number = 0): Promise<OrderHistory[]> {
+    try {
+      // Page orders before joining so an order's line items are never split across pages.
+      const rows = await this.db.all<OrderHistoryRow>(
+        `SELECT o.order_id AS orderId, o.branch_id AS branchId, o.order_date AS orderDate,
+                o.name, o.description, o.status, d.order_detail_id AS orderDetailId,
+                d.product_id AS productId, p.name AS productName, d.quantity,
+                d.unit_price AS unitPrice, d.notes
+         FROM (
+           SELECT * FROM orders WHERE branch_id = ?
+           ORDER BY order_date DESC, order_id DESC LIMIT ? OFFSET ?
+         ) o
+         LEFT JOIN order_details d ON d.order_id = o.order_id
+         LEFT JOIN products p ON p.product_id = d.product_id
+         ORDER BY o.order_date DESC, o.order_id DESC, d.order_detail_id`,
+        [branchId, limit, offset],
+      );
+      const orders = new Map<number, OrderHistory>();
+      for (const row of rows) {
+        let order = orders.get(row.orderId);
+        if (!order) {
+          order = {
+            orderId: row.orderId,
+            branchId: row.branchId,
+            orderDate: row.orderDate,
+            name: row.name,
+            description: row.description,
+            status: row.status,
+            total: 0,
+            orderDetails: [],
+          };
+          orders.set(row.orderId, order);
+        }
+        if (row.orderDetailId !== null) {
+          if (row.productId === null || row.productName === null ||
+              row.quantity === null || row.unitPrice === null) {
+            throw new Error(`Incomplete order detail ${row.orderDetailId}`);
+          }
+          order.orderDetails.push({
+            orderDetailId: row.orderDetailId,
+            orderId: row.orderId,
+            productId: row.productId,
+            productName: row.productName,
+            quantity: row.quantity,
+            unitPrice: row.unitPrice,
+            notes: row.notes,
+          });
+          order.total += row.quantity * row.unitPrice;
+        }
+      }
+      return Array.from(orders.values(), (order) => ({
+        ...order,
+        total: Math.round((order.total + Number.EPSILON) * 100) / 100,
+      }));
     } catch (error) {
       handleDatabaseError(error);
     }

@@ -9,17 +9,45 @@
  * @swagger
  * /api/orders:
  *   get:
- *     summary: Returns all orders
+ *     summary: Returns all orders, or paginated order history for a branch
  *     tags: [Orders]
+ *     parameters:
+ *       - in: query
+ *         name: branchId
+ *         description: Branch placing the orders. When supplied, returns history with line items and totals, newest first.
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *       - in: query
+ *         name: limit
+ *         description: Maximum number of orders per history page. Requires branchId.
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 50
+ *       - in: query
+ *         name: offset
+ *         description: Number of orders to skip. Requires branchId.
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *           default: 0
  *     responses:
  *       200:
- *         description: List of all orders
+ *         description: Orders, or branch order history. Empty history returns an empty array.
  *         content:
  *           application/json:
  *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Order'
+ *               anyOf:
+ *                 - type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Order'
+ *                 - type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/OrderHistory'
+ *       400:
+ *         description: Invalid branchId, limit, or offset, or pagination without branchId
  *   post:
  *     summary: Create a new order
  *     tags: [Orders]
@@ -102,9 +130,20 @@
 import express from 'express';
 import { Order } from '../models/order';
 import { getOrdersRepository } from '../repositories/ordersRepo';
-import { handleDatabaseError, NotFoundError } from '../utils/errors';
+import { NotFoundError, ValidationError } from '../utils/errors';
 
 const router = express.Router();
+
+function parseHistoryInteger(value: unknown, name: string, minimum: number, maximum: number = Number.MAX_SAFE_INTEGER): number {
+  if (typeof value !== 'string' || !/^\d+$/.test(value)) {
+    throw new ValidationError(`${name} must be an integer between ${minimum} and ${maximum}`);
+  }
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < minimum || parsed > maximum) {
+    throw new ValidationError(`${name} must be an integer between ${minimum} and ${maximum}`);
+  }
+  return parsed;
+}
 
 // Create a new order
 router.post('/', async (req, res, next) => {
@@ -120,6 +159,17 @@ router.post('/', async (req, res, next) => {
 // Get all orders
 router.get('/', async (req, res, next) => {
   try {
+    if (req.query.branchId !== undefined) {
+      const branchId = parseHistoryInteger(req.query.branchId, 'branchId', 1);
+      const limit = req.query.limit === undefined ? 50 : parseHistoryInteger(req.query.limit, 'limit', 1, 100);
+      const offset = req.query.offset === undefined ? 0 : parseHistoryInteger(req.query.offset, 'offset', 0);
+      const repo = await getOrdersRepository();
+      res.json(await repo.findHistoryByBranchId(branchId, limit, offset));
+      return;
+    }
+    if (req.query.limit !== undefined || req.query.offset !== undefined) {
+      throw new ValidationError('branchId is required for history pagination');
+    }
     const repo = await getOrdersRepository();
     const orders = await repo.findAll();
 
