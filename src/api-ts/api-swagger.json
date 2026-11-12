@@ -634,23 +634,68 @@
         },
         "/api/orders": {
             "get": {
-                "summary": "Returns all orders",
+                "summary": "Returns all orders, or paginated order history for a branch",
                 "tags": [
                     "Orders"
                 ],
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "branchId",
+                        "description": "Branch placing the orders. When supplied, returns history with line items and totals, newest first.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "limit",
+                        "description": "Maximum number of orders per history page. Requires branchId.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100,
+                            "default": 50
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "offset",
+                        "description": "Number of orders to skip. Requires branchId.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "default": 0
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
-                        "description": "List of all orders",
+                        "description": "Orders, or branch order history. Empty history returns an empty array.",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "array",
-                                    "items": {
-                                        "$ref": "#/components/schemas/Order"
-                                    }
+                                    "anyOf": [
+                                        {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Order"
+                                            }
+                                        },
+                                        {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/OrderHistory"
+                                            }
+                                        }
+                                    ]
                                 }
                             }
                         }
+                    },
+                    "400": {
+                        "description": "Invalid branchId, limit, or offset, or pagination without branchId"
                     }
                 }
             },
@@ -1769,6 +1814,87 @@
                     "verified": {
                         "type": "boolean",
                         "description": "Whether the supplier is verified"
+                    }
+                }
+            },
+            "OrderHistory": {
+                "type": "object",
+                "required": [
+                    "orderId",
+                    "branchId",
+                    "orderDate",
+                    "name",
+                    "description",
+                    "status",
+                    "total",
+                    "orderDetails"
+                ],
+                "properties": {
+                    "orderId": {
+                        "type": "integer"
+                    },
+                    "branchId": {
+                        "type": "integer"
+                    },
+                    "orderDate": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "total": {
+                        "type": "number",
+                        "description": "Sum of quantity times the stored unit price, rounded to two decimal places"
+                    },
+                    "orderDetails": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/OrderHistoryDetail"
+                        }
+                    }
+                }
+            },
+            "OrderHistoryDetail": {
+                "type": "object",
+                "required": [
+                    "orderDetailId",
+                    "orderId",
+                    "productId",
+                    "productName",
+                    "quantity",
+                    "unitPrice",
+                    "notes"
+                ],
+                "properties": {
+                    "orderDetailId": {
+                        "type": "integer"
+                    },
+                    "orderId": {
+                        "type": "integer"
+                    },
+                    "productId": {
+                        "type": "integer"
+                    },
+                    "productName": {
+                        "type": "string"
+                    },
+                    "quantity": {
+                        "type": "integer"
+                    },
+                    "unitPrice": {
+                        "type": "number"
+                    },
+                    "notes": {
+                        "type": "string",
+                        "nullable": true
                     }
                 }
             }

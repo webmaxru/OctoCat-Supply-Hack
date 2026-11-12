@@ -15,9 +15,9 @@ export default function Navigation() {
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           <div className="flex-shrink-0 flex items-center">
-            <Link to="/" className="flex items-center">
+            <Link to="/" className="flex items-center" aria-label="OctoCAT Supply home">
               <img src="/copilot.png" alt="Copilot icon" className="h-8 w-auto" />
-              <div className="ml-2">
+              <div className="ml-2 hidden sm:block">
                 <span className={`text-xl font-bold ${darkMode ? 'text-light' : 'text-gray-800'}`}>
                   OctoCAT Supply
                 </span>
@@ -85,6 +85,12 @@ export default function Navigation() {
             </div>
           </div>
           <div className="flex items-center space-x-4">
+            <Link
+              to="/orders"
+              className={`${darkMode ? 'text-light hover:text-primary' : 'text-gray-700 hover:text-primary'} rounded-md px-2 py-2 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary`}
+            >
+              Order history
+            </Link>
             <button
               onClick={toggleTheme}
               className="p-2 rounded-full focus:outline-none transition-colors"

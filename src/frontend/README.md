@@ -1,5 +1,16 @@
 # React + TypeScript + Vite
 
+## Order history
+
+The **Order history** navigation link opens `/orders`. Select a branch to see its
+orders, newest first, with dates, statuses, and totals. Open an order to review
+products, quantities, and the prices paid. Newer/older controls paginate by 20
+orders. Loading, empty, and retryable error states are shown explicitly.
+
+This view requires the TypeScript API's `GET /api/orders?branchId=...` endpoint.
+The demo login does not identify a customer or branch, so branch selection is
+explicit and is not an authorization boundary.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:
